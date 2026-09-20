@@ -1,0 +1,15 @@
+{
+  "workload": "benchmark_workload.py",
+  "warmup_runs": 2,
+  "benchmark_runs": 5,
+  "execution_times_seconds": [
+    0.1354026530000283,
+    0.14558502499994574,
+    0.14766392499996073,
+    0.11197714299987638,
+    0.14627552499996455
+  ],
+  "average_time_seconds": 0.13738085419995513,
+  "minimum_time_seconds": 0.11197714299987638,
+  "maximum_time_seconds": 0.14766392499996073
+}
