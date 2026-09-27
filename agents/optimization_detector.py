@@ -23,122 +23,98 @@ class OptimizationDetector:
     def detect(self, analysis: dict) -> list[dict]:
         candidates = []
 
-        if analysis.get("pytorch_detected"):
-            candidates.append(
-                self._candidate(
-                    category="framework",
-                    candidate="PyTorch optimization review",
-                    reason=(
-                        "PyTorch workload detected. Review device "
-                        "placement, execution mode, and available "
-                        "backend optimizations."
-                    ),
-                    evidence=["pytorch_detected=True"],
-                )
-            )
+        frameworks = analysis.get("frameworks", [])
+        cuda_references = analysis.get("cuda_references", False)
+        rocm_references = analysis.get("rocm_references", False)
+        gpu_usage = analysis.get("gpu_usage", False)
+        tensor_operations = analysis.get("tensor_operations", False)
+        model_operations = analysis.get("model_operations", False)
 
-        if analysis.get("cuda_references"):
-            candidates.append(
-                self._candidate(
-                    category="device",
-                    candidate="CUDA portability review",
-                    reason=(
-                        "CUDA-related references were detected. "
-                        "Review whether the workload can use "
-                        "AMD ROCm-compatible execution paths."
-                    ),
-                    evidence=["cuda_references=True"],
-                )
-            )
-
-        if analysis.get("rocm_references") or analysis.get(
-            "hip_references"
+        def add_candidate(
+            category: str,
+            candidate: str,
+            reason: str,
+            evidence: str,
         ):
             candidates.append(
-                self._candidate(
-                    category="amd_runtime",
-                    candidate="ROCm/HIP optimization review",
-                    reason=(
-                        "ROCm or HIP references were detected. "
-                        "Review AMD-specific runtime configuration "
-                        "and execution behavior."
-                    ),
-                    evidence=[
-                        f"rocm_references="
-                        f"{analysis.get('rocm_references')}",
-                        f"hip_references="
-                        f"{analysis.get('hip_references')}",
-                    ],
-                )
+                {
+                    "category": category,
+                    "candidate": candidate,
+                    "reason": reason,
+                    "evidence": evidence,
+                    "status": "candidate",
+                    "requires_human_approval": True,
+                    "verification_required": True,
+                }
             )
 
-        tensor_operations = analysis.get("tensor_operations", [])
+        if "PyTorch" in frameworks:
+            add_candidate(
+                category="framework_optimization",
+                candidate="Review PyTorch execution for AMD/ROCm optimization opportunities.",
+                reason=(
+                    "The workload uses PyTorch and may benefit from "
+                    "AMD-specific execution optimizations."
+                ),
+                evidence="PyTorch framework detected.",
+            )
+
+        if cuda_references:
+            add_candidate(
+                category="portability",
+                candidate="Review CUDA-specific code for ROCm/HIP portability.",
+                reason=(
+                    "CUDA-related references were detected and should "
+                    "be reviewed before AMD GPU execution."
+                ),
+                evidence="CUDA references detected in source code.",
+            )
+
+        if rocm_references:
+            add_candidate(
+                category="rocm_optimization",
+                candidate="Review existing ROCm/HIP usage for optimization opportunities.",
+                reason=(
+                    "ROCm/HIP references were detected and may require "
+                    "performance validation."
+                ),
+                evidence="ROCm/HIP references detected in source code.",
+            )
 
         if tensor_operations:
-            candidates.append(
-                self._candidate(
-                    category="tensor_operations",
-                    candidate="Tensor operation review",
-                    reason=(
-                        f"{len(tensor_operations)} tensor-related "
-                        "operation types were detected. Review "
-                        "operation efficiency and memory behavior."
-                    ),
-                    evidence=[
-                        f"tensor_operations={tensor_operations}"
-                    ],
-                )
+            add_candidate(
+                category="tensor_optimization",
+                candidate="Review tensor operations for performance optimization.",
+                reason=(
+                    "Tensor-related operations were detected and should "
+                    "be benchmarked for optimization opportunities."
+                ),
+                evidence="Tensor operations detected in workload.",
             )
-
-        model_operations = analysis.get("model_operations", [])
 
         if model_operations:
-            candidates.append(
-                self._candidate(
-                    category="model",
-                    candidate="Model execution review",
-                    reason=(
-                        f"{len(model_operations)} model-related "
-                        "operation types were detected. Review "
-                        "inference/training execution efficiency."
-                    ),
-                    evidence=[
-                        f"model_operations={model_operations}"
-                    ],
-                )
+            add_candidate(
+                category="model_optimization",
+                candidate="Review model execution for performance optimization.",
+                reason=(
+                    "Model-related operations were detected and should "
+                    "be evaluated through benchmarking and verification."
+                ),
+                evidence="Model operations detected in workload.",
             )
 
-        if analysis.get("gpu_usage_detected"):
-            candidates.append(
-                self._candidate(
-                    category="gpu",
-                    candidate="GPU execution review",
-                    reason=(
-                        "GPU-related code was detected. Benchmark "
-                        "GPU execution and investigate device "
-                        "utilization and memory behavior."
-                    ),
-                    evidence=["gpu_usage_detected=True"],
-                )
+        if gpu_usage:
+            add_candidate(
+                category="gpu_execution",
+                candidate="Validate GPU execution and measure AMD GPU performance.",
+                reason=(
+                    "GPU-related source-code signals were detected. "
+                    "Actual hardware execution must be benchmarked."
+                ),
+                evidence=(
+                    "GPU-related source-code signal detected; "
+                    "runtime GPU execution is not yet verified."
+                ),
             )
 
         return candidates
-
-    @staticmethod
-    def _candidate(
-        category: str,
-        candidate: str,
-        reason: str,
-        evidence: list[str],
-    ) -> dict:
-        """Create a structured optimization candidate."""
-
-        return {
-            "category": category,
-            "candidate": candidate,
-            "reason": reason,
-            "evidence": evidence,
-            "status": "candidate",
-            "requires_human_approval": True,
-            "verification_required": True,
-        }
