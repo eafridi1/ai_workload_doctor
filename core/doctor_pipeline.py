@@ -1,4 +1,5 @@
 from agents.governed_action import GovernedOptimizationAction
+from agents.correctness_engine import CorrectnessEngine
 from agents.optimization_detector import OptimizationDetector
 from agents.verification_engine import VerificationEngine
 from agents.workload_analyzer import WorkloadAnalyzer
@@ -43,6 +44,7 @@ class WorkloadDoctorPipeline:
         self.analyzer = WorkloadAnalyzer(workload_path)
         self.detector = OptimizationDetector()
         self.verifier = VerificationEngine()
+        self.correctness_engine = CorrectnessEngine()
         self.result_store = BenchmarkResultStore()
 
     def analyze(self) -> dict:
@@ -78,17 +80,36 @@ class WorkloadDoctorPipeline:
         self,
         before: dict,
         after: dict,
-        correctness_passed: bool = True,
+        correctness_passed: bool = False,
+        reference_output=None,
+        candidate_output=None,
     ) -> dict:
-        correctness_result = {
-            "passed": correctness_passed,
-        }
+        """Verify correctness and performance before accepting a candidate."""
 
-        return self.verifier.verify(
+        if (reference_output is None) != (candidate_output is None):
+            raise ValueError(
+                "Provide both reference_output and candidate_output."
+            )
+
+        if reference_output is not None:
+            correctness_result = self.correctness_engine.compare(
+                reference_output,
+                candidate_output,
+            )
+        else:
+            correctness_result = {
+                "passed": bool(correctness_passed),
+                "mismatch_count": None,
+                "mismatches": [],
+            }
+
+        result = self.verifier.verify(
             before_benchmark=before,
             after_benchmark=after,
             correctness_result=correctness_result,
         )
+        result["correctness_result"] = correctness_result
+        return result
 
     def save_result(self, result: dict, filename: str):
         return self.result_store.save(result, filename)
