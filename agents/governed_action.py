@@ -168,7 +168,12 @@ class GovernedOptimizationAction:
         )
 
     def accept(self) -> None:
-        """Accept the optimization after verification."""
+        """Accept only an approved action with successful verification."""
+
+        if self.requires_human_approval and not self.human_approved:
+            raise PermissionError(
+                "Human approval is required before acceptance."
+            )
 
         if self.verification_required:
             if self.verification_result is None:
@@ -176,10 +181,22 @@ class GovernedOptimizationAction:
                     "Verification is required before acceptance."
                 )
 
-        self.record_event(
-            "accepted",
-            {},
-        )
+            if (
+                not self.verification_result.get("verified", False)
+                or self.verification_result.get("decision") != "accept"
+                or not self.verification_result.get(
+                    "correctness_passed", False
+                )
+                or not self.verification_result.get(
+                    "performance_improved", False
+                )
+            ):
+                raise ValueError(
+                    "Successful correctness and performance "
+                    "verification are required before acceptance."
+                )
+
+        self.record_event("accepted", {})
 
     def rollback(self, reason: str) -> None:
         """Record that the optimization should be rolled back."""
