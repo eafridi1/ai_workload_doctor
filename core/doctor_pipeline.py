@@ -8,6 +8,9 @@ from agents.workload_analyzer import WorkloadAnalyzer
 from benchmarks.benchmark_engine import BenchmarkEngine
 from benchmarks.result_store import BenchmarkResultStore
 from core.safe_execution import SafeFileExecutor
+from ssor.case_record import CaseRecord
+from ssor.case_store import CaseStore
+from ssor.provenance import create_provenance
 
 
 class WorkloadDoctorPipeline:
@@ -30,7 +33,7 @@ class WorkloadDoctorPipeline:
             ↓
         Accept / Rollback
             ↓
-        Report
+        Report / SSoR
 
     The analysis workload and benchmark workload can be different
     during local integration testing.
@@ -40,6 +43,7 @@ class WorkloadDoctorPipeline:
         self,
         workload_path: str,
         benchmark_workload_path: str | None = None,
+        case_id: str | None = None,
     ):
         self.workload_path = workload_path
         self.benchmark_workload_path = (
@@ -53,26 +57,86 @@ class WorkloadDoctorPipeline:
         self.result_store = BenchmarkResultStore()
         self.safe_executor = SafeFileExecutor()
 
+        self.case_store = CaseStore()
+
+        self.case = CaseRecord(
+            case_id=case_id or "local-case",
+            workload=workload_path,
+        )
+
     def analyze(self) -> dict:
-        return self.analyzer.analyze()
+        result = self.analyzer.analyze()
+
+        self.case.analysis = result
+        self.case.add_provenance(
+            create_provenance(
+                source="workload_analyzer",
+                source_type="system",
+                details={
+                    "workload": self.workload_path,
+                },
+            )
+        )
+        self.case.record_event(
+            "analysis_completed",
+            {
+                "workload": self.workload_path,
+            },
+        )
+
+        return result
 
     def detect_candidates(self, analysis: dict) -> list[dict]:
-        return self.detector.detect(analysis)
+        candidates = self.detector.detect(analysis)
+
+        if candidates:
+            self.case.candidate = candidates[0]
+
+        self.case.record_event(
+            "candidates_detected",
+            {
+                "count": len(candidates),
+            },
+        )
+
+        return candidates
 
     def create_action(
         self,
         candidate: dict,
         action_id: str,
     ) -> GovernedOptimizationAction:
-        return GovernedOptimizationAction(
+        action = GovernedOptimizationAction(
             action_id=action_id,
             candidate=candidate["candidate"],
             category=candidate["category"],
             reason=candidate["reason"],
             evidence=candidate["evidence"],
-            requires_human_approval=candidate["requires_human_approval"],
-            verification_required=candidate["verification_required"],
+            requires_human_approval=candidate[
+                "requires_human_approval"
+            ],
+            verification_required=candidate[
+                "verification_required"
+            ],
         )
+
+        self.case.candidate = candidate
+        self.case.approval = {
+            "required": action.requires_human_approval,
+            "approved": action.human_approved,
+        }
+
+        self.case.record_event(
+            "governed_action_created",
+            {
+                "action_id": action_id,
+                "approval_required": (
+                    action.requires_human_approval
+                ),
+            },
+        )
+
+        return action
 
     def benchmark(self, capture_output: bool = False) -> dict:
         engine = BenchmarkEngine(
@@ -81,7 +145,22 @@ class WorkloadDoctorPipeline:
             benchmark_runs=5,
             capture_output=capture_output,
         )
-        return engine.run()
+
+        result = engine.run()
+
+        self.case.benchmarks["latest"] = result
+
+        self.case.add_provenance(
+            create_provenance(
+                source="benchmark_engine",
+                source_type="system",
+                details={
+                    "workload": self.benchmark_workload_path,
+                },
+            )
+        )
+
+        return result
 
     def verify(
         self,
@@ -93,15 +172,19 @@ class WorkloadDoctorPipeline:
     ) -> dict:
         """Verify correctness and performance before accepting a candidate."""
 
-        if (reference_output is None) != (candidate_output is None):
+        if (reference_output is None) != (
+            candidate_output is None
+        ):
             raise ValueError(
                 "Provide both reference_output and candidate_output."
             )
 
         if reference_output is not None:
-            correctness_result = self.correctness_engine.compare(
-                reference_output,
-                candidate_output,
+            correctness_result = (
+                self.correctness_engine.compare(
+                    reference_output,
+                    candidate_output,
+                )
             )
         else:
             correctness_result = {
@@ -118,6 +201,21 @@ class WorkloadDoctorPipeline:
 
         result["correctness_result"] = correctness_result
 
+        self.case.verification = result
+
+        self.case.record_event(
+            "verification_completed",
+            {
+                "verified": result.get(
+                    "verified",
+                    False,
+                ),
+                "decision": result.get(
+                    "decision",
+                ),
+            },
+        )
+
         return result
 
     def execute_optimization(
@@ -128,13 +226,28 @@ class WorkloadDoctorPipeline:
         reference_output,
     ) -> dict:
         """
-        Apply an approved optimization, verify it, and rollback on failure.
+        Apply an approved optimization, verify it,
+        and rollback on failure.
         """
+
+        self.case.approval = {
+            "required": action.requires_human_approval,
+            "approved": action.human_approved,
+        }
 
         execution = self.safe_executor.execute(
             action=action,
             target_path=self.workload_path,
             new_content=new_content,
+        )
+
+        self.case.execution = execution
+
+        self.case.record_event(
+            "optimization_executed",
+            {
+                "target": self.workload_path,
+            },
         )
 
         backup_path = execution["backup_path"]
@@ -147,7 +260,9 @@ class WorkloadDoctorPipeline:
                 capture_output=True,
             ).run()
 
-            candidate_output = after_benchmark.get("output")
+            candidate_output = after_benchmark.get(
+                "output"
+            )
 
             verification = self.verify(
                 before=before_benchmark,
@@ -161,10 +276,30 @@ class WorkloadDoctorPipeline:
                 after_benchmark,
             )
 
-            action.record_verification(verification)
+            action.record_verification(
+                verification
+            )
 
-            if verification.get("verified", False):
+            self.case.benchmarks = {
+                "before": before_benchmark,
+                "after": after_benchmark,
+            }
+
+            if verification.get(
+                "verified",
+                False,
+            ):
                 action.accept()
+
+                self.case.outcome = "accepted"
+
+                self.case.record_event(
+                    "optimization_accepted"
+                )
+
+                case_path = self.case_store.save(
+                    self.case
+                )
 
                 return {
                     "status": "accepted",
@@ -172,6 +307,10 @@ class WorkloadDoctorPipeline:
                     "benchmark": after_benchmark,
                     "verification": verification,
                     "action": action.to_dict(),
+                    "ssor": {
+                        "case_id": self.case.case_id,
+                        "path": case_path,
+                    },
                 }
 
             rollback = self.safe_executor.rollback(
@@ -179,9 +318,24 @@ class WorkloadDoctorPipeline:
                 target_path=self.workload_path,
                 backup_path=backup_path,
                 reason=(
-                    "Optimization failed correctness or "
-                    "performance verification."
+                    "Optimization failed correctness "
+                    "or performance verification."
                 ),
+            )
+
+            self.case.outcome = "rolled_back"
+
+            self.case.record_event(
+                "optimization_rolled_back",
+                {
+                    "reason": (
+                        "correctness_or_performance_failure"
+                    ),
+                },
+            )
+
+            case_path = self.case_store.save(
+                self.case
             )
 
             return {
@@ -191,6 +345,10 @@ class WorkloadDoctorPipeline:
                 "verification": verification,
                 "rollback": rollback,
                 "action": action.to_dict(),
+                "ssor": {
+                    "case_id": self.case.case_id,
+                    "path": case_path,
+                },
             }
 
         except Exception:
@@ -201,7 +359,30 @@ class WorkloadDoctorPipeline:
                     backup_path=backup_path,
                     reason="Optimization execution failed.",
                 )
+
+            self.case.outcome = "error"
+
+            self.case.record_event(
+                "optimization_error"
+            )
+
+            self.case_store.save(self.case)
+
             raise
 
-    def save_result(self, result: dict, filename: str):
-        return self.result_store.save(result, filename)
+    def save_case(self) -> str:
+        """Persist the current SSoR case."""
+
+        return self.case_store.save(
+            self.case
+        )
+
+    def save_result(
+        self,
+        result: dict,
+        filename: str,
+    ):
+        return self.result_store.save(
+            result,
+            filename,
+        )

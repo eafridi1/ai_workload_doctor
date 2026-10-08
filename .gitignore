@@ -36,3 +36,6 @@ benchmarks/results/
 # Temporary files
 *.tmp
 *.bak
+
+# Generated SSoR case records
+reports/ssor/
