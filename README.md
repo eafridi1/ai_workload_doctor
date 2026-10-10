@@ -109,3 +109,20 @@ Implemented explicit recovery of persisted optimization cases.
 - 33 project tests passed.
 - Case recovery and missing-case behavior validated.
 - Existing optimization governance, correctness, verification, and rollback tests preserved.
+
+
+## AMD-03.10: Provenance and Evidence Integrity
+
+Added SHA-256 content hashing to SSoR provenance records.
+
+- Canonical JSON serialization produces deterministic hashes for equivalent JSON-compatible data.
+- Provenance records include the hash algorithm and a hash of their recorded details.
+- Hash verification detects changes to recorded details when compared against the original expected hash.
+- Automated tests cover deterministic hashing, tampering detection, and provenance hash metadata.
+
+Validation:
+- Full test suite: 36 tests passed.
+- Integrity checks use Python's standard library.
+
+Limitation:
+The hash is not a digital signature. If an attacker can modify both the recorded details and their stored hash, this alone cannot prove authenticity. Stronger protection requires a separately trusted hash, signature, or protected audit store.
