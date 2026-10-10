@@ -1,7 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
-
+from core.doctor_pipeline import WorkloadDoctorPipeline
 from ssor.case_record import CaseRecord
 from ssor.case_store import CaseStore
 from ssor.provenance import create_provenance
@@ -131,6 +131,48 @@ class TestSSoR(unittest.TestCase):
             "captured_at",
             provenance,
         )
+    def test_saved_case_can_be_recovered(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = CaseStore(temp_dir)
+            original = CaseRecord(
+                case_id="AMD-03.9-001",
+                workload="sample_workload.py",
+            )
+            original.analysis = {"lines": 20}
+            original.record_event("analysis_completed")
+            store.save(original)
+
+            pipeline = WorkloadDoctorPipeline(
+                workload_path="workloads/sample_workload.py",
+                case_id="temporary-case",
+            )
+            pipeline.case_store = store
+
+            recovered = pipeline.load_case("AMD-03.9-001")
+
+            self.assertEqual(
+                recovered["case_id"],
+                "AMD-03.9-001",
+            )
+            self.assertEqual(
+                recovered["analysis"]["lines"],
+                20,
+            )
+            self.assertEqual(
+                recovered["events"][-1]["event"],
+                "case_recovered",
+            )
+
+    def test_recovery_of_unknown_case_fails(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pipeline = WorkloadDoctorPipeline(
+                workload_path="workloads/sample_workload.py",
+                case_id="temporary-case",
+            )
+            pipeline.case_store = CaseStore(temp_dir)
+
+            with self.assertRaises(FileNotFoundError):
+                pipeline.load_case("does-not-exist")
 
 
 if __name__ == "__main__":

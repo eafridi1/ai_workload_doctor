@@ -82,3 +82,30 @@ AMD-03.8 integration completed with:
 - Provenance recording validated
 - Pipeline integration validated
 - AMD-03.7 execution, verification, acceptance, and rollback tests preserved
+
+
+## AMD-03.9 — SSoR Case Recovery and Handoff
+
+Implemented explicit recovery of persisted optimization cases.
+
+### Capabilities
+
+- Load an existing case using its `case_id`.
+- Restore saved workload and analysis state.
+- Preserve candidate, evidence, approval, benchmark, verification, outcome, and event history.
+- Record a `case_recovered` lifecycle event after recovery.
+- Reject unknown case IDs with `FileNotFoundError`.
+- Support case handoff without relying on previous chat history.
+
+### Implementation
+
+- `core/doctor_pipeline.py` — `load_case(case_id)` recovery method.
+- `ssor/case_store.py` — loads persisted JSON case records.
+- `ssor/case_record.py` — reconstructs structured case state.
+- `tests/test_ssor.py` — tests persistence, provenance, recovery, and missing-case handling.
+
+### Validation
+
+- 33 project tests passed.
+- Case recovery and missing-case behavior validated.
+- Existing optimization governance, correctness, verification, and rollback tests preserved.

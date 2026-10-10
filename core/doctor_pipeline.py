@@ -376,6 +376,20 @@ class WorkloadDoctorPipeline:
         return self.case_store.save(
             self.case
         )
+    def load_case(self, case_id: str) -> dict:
+        """Recover a saved SSoR case for handoff or review."""
+
+        self.case = self.case_store.load(case_id)
+
+        self.case.record_event(
+            "case_recovered",
+            {
+                "recovered_by": "WorkloadDoctorPipeline",
+            },
+        )
+
+        return self.case.to_dict()
+
 
     def save_result(
         self,
