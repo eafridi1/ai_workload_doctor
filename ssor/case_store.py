@@ -1,3 +1,4 @@
+
 import json
 from pathlib import Path
 
@@ -28,6 +29,8 @@ class CaseStore:
         return self.directory / f"{safe_case_id}.json"
 
     def save(self, case: CaseRecord) -> str:
+        """Save a case record as formatted JSON."""
+
         path = self._path(case.case_id)
 
         path.write_text(
@@ -35,13 +38,20 @@ class CaseStore:
                 case.to_dict(),
                 indent=2,
                 sort_keys=True,
+                allow_nan=False,
             ),
             encoding="utf-8",
         )
 
         return str(path)
 
-    def load(self, case_id: str) -> CaseRecord:
+    def load(
+        self,
+        case_id: str,
+        verify_integrity: bool = True,
+    ) -> CaseRecord:
+        """Load a case, verifying its audit chain by default."""
+
         path = self._path(case_id)
 
         if not path.is_file():
@@ -50,9 +60,13 @@ class CaseStore:
             )
 
         data = json.loads(
-            path.read_text(
-                encoding="utf-8"
-            )
+            path.read_text(encoding="utf-8")
         )
+        case = CaseRecord.from_dict(data)
 
-        return CaseRecord.from_dict(data)
+        if verify_integrity and not case.verify_event_chain():
+            raise ValueError(
+                f"SSoR event-chain integrity check failed: {case_id}"
+            )
+
+        return case

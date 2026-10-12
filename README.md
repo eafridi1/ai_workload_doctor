@@ -126,3 +126,21 @@ Validation:
 
 Limitation:
 The hash is not a digital signature. If an attacker can modify both the recorded details and their stored hash, this alone cannot prove authenticity. Stronger protection requires a separately trusted hash, signature, or protected audit store.
+
+## AMD-03.11: SSoR Audit Trail Integrity
+
+Added a SHA-256 hash chain to SSoR case events.
+
+- Each new event records a hash of its content and a link to the previous event.
+- Event-chain verification detects modified events, reordering, and broken links.
+- CaseStore validates event-chain integrity during loading by default.
+- Invalid or legacy unverified event chains are rejected by default.
+- Legacy cases can be loaded for inspection with `verify_integrity=False`, without claiming they are verified.
+- JSON persistence rejects non-standard numeric values such as NaN.
+
+Validation:
+- Full test suite: 41 tests passed.
+- Tests cover valid chains, modified events, reordered events, valid persisted cases, and tampered persisted cases.
+
+Limitation:
+The hash chain is tamper-evident, not tamper-proof. An attacker able to rewrite the complete event chain can recompute its hashes. Stronger guarantees require a trusted external checkpoint, protected audit storage, or digital signatures.

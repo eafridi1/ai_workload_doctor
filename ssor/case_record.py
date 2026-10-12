@@ -1,10 +1,29 @@
+
+import hashlib
+import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
 
+GENESIS_HASH = "0" * 64
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _event_hash(event_data: dict[str, Any]) -> str:
+    """Calculate a deterministic SHA-256 hash for an audit event."""
+
+    canonical = json.dumps(
+        event_data,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 @dataclass
@@ -31,14 +50,58 @@ class CaseRecord:
         event: str,
         details: dict[str, Any] | None = None,
     ) -> None:
-        self.events.append(
-            {
-                "event": event,
-                "details": details or {},
-                "timestamp": _now(),
-            }
+        """Append an event linked to the previous event's hash."""
+
+        previous_hash = (
+            self.events[-1].get("event_hash", GENESIS_HASH)
+            if self.events
+            else GENESIS_HASH
         )
+
+        event_data = {
+            "event": event,
+            "details": details or {},
+            "timestamp": _now(),
+            "previous_hash": previous_hash,
+        }
+
+        event_data["event_hash"] = _event_hash(event_data)
+        self.events.append(event_data)
         self.updated_at = _now()
+
+    def verify_event_chain(self) -> bool:
+        """Verify event hashes, order, and previous-event links."""
+
+        previous_hash = GENESIS_HASH
+
+        for event in self.events:
+            if not isinstance(event, dict):
+                return False
+
+            stored_hash = event.get("event_hash")
+            if not isinstance(stored_hash, str):
+                return False
+
+            if event.get("previous_hash") != previous_hash:
+                return False
+
+            event_data = {
+                key: value
+                for key, value in event.items()
+                if key != "event_hash"
+            }
+
+            try:
+                calculated_hash = _event_hash(event_data)
+            except (TypeError, ValueError):
+                return False
+
+            if calculated_hash != stored_hash:
+                return False
+
+            previous_hash = stored_hash
+
+        return True
 
     def add_evidence(
         self,
@@ -90,4 +153,3 @@ class CaseRecord:
             created_at=data.get("created_at", _now()),
             updated_at=data.get("updated_at", _now()),
         )
-

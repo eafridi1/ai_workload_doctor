@@ -1,8 +1,7 @@
-
+import json
 import tempfile
 import unittest
 from pathlib import Path
-
 from core.doctor_pipeline import WorkloadDoctorPipeline
 from ssor.case_record import CaseRecord
 from ssor.case_store import CaseStore
@@ -146,6 +145,87 @@ class TestSSoR(unittest.TestCase):
                 record["content_hash"],
             )
         )
+
+    def test_new_event_chain_is_valid(self):
+        case = CaseRecord(
+            case_id="chain-test",
+            workload="sample_workload.py",
+        )
+
+        case.record_event("analysis_completed", {"lines": 10})
+        case.record_event("candidate_detected", {"count": 1})
+
+        self.assertTrue(case.verify_event_chain())
+
+    def test_modified_event_fails_chain_verification(self):
+        case = CaseRecord(
+            case_id="tamper-test",
+            workload="sample_workload.py",
+        )
+
+        case.record_event("analysis_completed", {"lines": 10})
+        case.events[0]["details"]["lines"] = 999
+
+        self.assertFalse(case.verify_event_chain())
+
+    def test_reordered_events_fail_chain_verification(self):
+        case = CaseRecord(
+            case_id="reorder-test",
+            workload="sample_workload.py",
+        )
+
+        case.record_event("analysis_completed")
+        case.record_event("candidate_detected")
+
+        case.events.reverse()
+
+        self.assertFalse(case.verify_event_chain())
+
+    def test_case_store_rejects_tampered_event(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = CaseStore(directory=temp_dir)
+            case = CaseRecord(
+                case_id="tampered-persistence",
+                workload="sample_workload.py",
+            )
+            case.record_event(
+                "analysis_completed",
+                {"lines": 10},
+            )
+
+            store.save(case)
+
+            path = Path(temp_dir) / "tampered-persistence.json"
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data["events"][0]["details"]["lines"] = 999
+            path.write_text(
+                json.dumps(data),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "integrity check failed",
+            ):
+                store.load("tampered-persistence")
+
+    def test_case_store_loads_valid_event_chain(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = CaseStore(directory=temp_dir)
+            case = CaseRecord(
+                case_id="valid-persistence",
+                workload="sample_workload.py",
+            )
+            case.record_event(
+                "analysis_completed",
+                {"lines": 10},
+            )
+
+            store.save(case)
+            loaded = store.load("valid-persistence")
+
+            self.assertTrue(loaded.verify_event_chain())
+            self.assertEqual(loaded.case_id, "valid-persistence")
 
 
 if __name__ == "__main__":
