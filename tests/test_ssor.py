@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from core.doctor_pipeline import WorkloadDoctorPipeline
 from ssor.case_record import CaseRecord
@@ -226,6 +227,66 @@ class TestSSoR(unittest.TestCase):
 
             self.assertTrue(loaded.verify_event_chain())
             self.assertEqual(loaded.case_id, "valid-persistence")
+
+    def test_failed_atomic_replace_preserves_previous_case(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = CaseStore(directory=temp_dir)
+            original = CaseRecord(
+                case_id="atomic-save-test",
+                workload="original_workload.py",
+            )
+            original.record_event("original_saved")
+            store.save(original)
+
+            updated = CaseRecord(
+                case_id="atomic-save-test",
+                workload="updated_workload.py",
+            )
+            updated.record_event("updated_saved")
+
+            with patch(
+                "ssor.case_store.os.replace",
+                side_effect=OSError("simulated replacement failure"),
+            ):
+                with self.assertRaisesRegex(
+                    OSError,
+                    "simulated replacement failure",
+                ):
+                    store.save(updated)
+
+            loaded = store.load("atomic-save-test")
+
+            self.assertEqual(
+                loaded.workload,
+                "original_workload.py",
+            )
+            self.assertEqual(
+                loaded.events[0]["event"],
+                "original_saved",
+            )
+            self.assertTrue(loaded.verify_event_chain())
+
+    def test_failed_atomic_replace_cleans_temporary_file(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = CaseStore(directory=temp_dir)
+            case = CaseRecord(
+                case_id="atomic-cleanup-test",
+                workload="sample_workload.py",
+            )
+            case.record_event("save_attempt")
+
+            with patch(
+                "ssor.case_store.os.replace",
+                side_effect=OSError("simulated replacement failure"),
+            ):
+                with self.assertRaises(OSError):
+                    store.save(case)
+
+            temp_files = list(
+                Path(temp_dir).glob(".atomic-cleanup-test.json.*.tmp")
+            )
+
+            self.assertEqual(temp_files, [])
 
 
 if __name__ == "__main__":

@@ -144,3 +144,21 @@ Validation:
 
 Limitation:
 The hash chain is tamper-evident, not tamper-proof. An attacker able to rewrite the complete event chain can recompute its hashes. Stronger guarantees require a trusted external checkpoint, protected audit storage, or digital signatures.
+
+## AMD-03.12: Safe, Atomic SSoR Persistence
+
+Updated CaseStore to use atomic JSON file replacement.
+
+- Writes case data to a temporary file in the destination directory.
+- Flushes and synchronizes the temporary file before replacement.
+- Uses `os.replace()` to replace the saved case.
+- Cleans up temporary files after failed writes or replacements.
+- Preserves the previous valid case when replacement fails.
+- Retains event-chain integrity verification when loading cases.
+
+Validation:
+- Full test suite: 43 tests passed.
+- Tests cover successful persistence, event-chain verification, failed replacement, preservation of the previous case, and temporary-file cleanup.
+
+Limitation:
+Atomic replacement reduces the risk of partially written case files. It does not guarantee protection against every hardware or filesystem failure, and it does not replace backups or external audit storage.
