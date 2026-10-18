@@ -1,4 +1,3 @@
-
 import json
 import os
 import tempfile
@@ -8,21 +7,20 @@ from ssor.case_record import CaseRecord
 
 
 class CaseStore:
-    """Persistent JSON storage for SSoR case records."""
+    """Validated, atomic JSON persistence for SSoR case records."""
 
     def __init__(self, directory: str = "reports/ssor"):
         self.directory = Path(directory)
-        self.directory.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
+        self.directory.mkdir(parents=True, exist_ok=True)
 
     def _path(self, case_id: str) -> Path:
+        if not isinstance(case_id, str):
+            raise ValueError("case_id must be a string.")
+
         safe_case_id = "".join(
             character
             for character in case_id
-            if character.isalnum()
-            or character in "-_"
+            if character.isalnum() or character in "-_"
         )
 
         if not safe_case_id:
@@ -31,10 +29,16 @@ class CaseStore:
         return self.directory / f"{safe_case_id}.json"
 
     def save(self, case: CaseRecord) -> str:
-        """Atomically save a case as formatted JSON."""
+        """Validate and atomically save a case record."""
+        if not isinstance(case, CaseRecord):
+            raise TypeError("case must be a CaseRecord instance.")
+
+        case.validate_schema()
+
+        if not case.verify_event_chain():
+            raise ValueError("SSoR event-chain integrity check failed.")
 
         path = self._path(case.case_id)
-
         content = json.dumps(
             case.to_dict(),
             indent=2,
@@ -69,18 +73,24 @@ class CaseStore:
         case_id: str,
         verify_integrity: bool = True,
     ) -> CaseRecord:
-        """Load a case, verifying its audit chain by default."""
-
+        """Load a schema-valid case and optionally verify its audit chain."""
         path = self._path(case_id)
 
         if not path.is_file():
-            raise FileNotFoundError(
-                f"SSoR case not found: {case_id}"
-            )
+            raise FileNotFoundError(f"SSoR case not found: {case_id}")
 
-        data = json.loads(
-            path.read_text(encoding="utf-8")
-        )
+        try:
+            data = json.loads(
+                path.read_text(encoding="utf-8"),
+                parse_constant=lambda value: (
+                    (_ for _ in ()).throw(
+                        ValueError(f"Invalid JSON numeric constant: {value}")
+                    )
+                ),
+            )
+        except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
+            raise ValueError(f"SSoR case contains invalid JSON: {case_id}") from exc
+
         case = CaseRecord.from_dict(data)
 
         if verify_integrity and not case.verify_event_chain():

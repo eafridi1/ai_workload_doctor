@@ -162,3 +162,14 @@ Validation:
 
 Limitation:
 Atomic replacement reduces the risk of partially written case files. It does not guarantee protection against every hardware or filesystem failure, and it does not replace backups or external audit storage.
+
+## AMD-03.13: SSoR Schema Validation
+
+- Added schema validation for required case fields and expected data types.
+- Validated ISO timestamps and audit-event structure.
+- Enforced schema validation before saving and after loading SSoR cases.
+- Prevented saving cases with malformed audit events or broken event chains.
+- Preserved atomic persistence and existing event-chain integrity checks.
+- Added regression tests for missing fields, invalid types, malformed events, and valid case recovery.
+
+Validation: 54 tests passed.
