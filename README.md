@@ -173,3 +173,15 @@ Atomic replacement reduces the risk of partially written case files. It does not
 - Added regression tests for missing fields, invalid types, malformed events, and valid case recovery.
 
 Validation: 54 tests passed.
+
+## AMD-03.15 — SSoR Case History and Revision Audit
+
+- Stores a snapshot for each successfully saved case revision.
+- Records revision number, timestamp, change summary, and SHA-256 snapshot hash.
+- Exposes read-only revision history through `CaseStore.get_history(case_id)`.
+- Validates snapshot hashes, case schemas, and event-chain integrity when reading history.
+- Preserves optimistic concurrency checks to reject stale writes.
+- Removes a newly written history entry if updating the current case file fails.
+
+Revision snapshots are local audit records, not a tamper-proof security boundary.
+A user able to rewrite both a snapshot and its hash can forge the stored history.
