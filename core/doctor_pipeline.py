@@ -59,10 +59,19 @@ class WorkloadDoctorPipeline:
 
         self.case_store = CaseStore()
 
-        self.case = CaseRecord(
-            case_id=case_id or "local-case",
-            workload=workload_path,
-        )
+        resolved_case_id = case_id or "local-case"
+
+        try:
+            self.case = self.case_store.load(
+                resolved_case_id
+            )
+            self.case.workload = workload_path
+        except FileNotFoundError:
+            self.case = CaseRecord(
+                case_id=resolved_case_id,
+                workload=workload_path,
+            )
+
 
     def analyze(self) -> dict:
         result = self.analyzer.analyze()

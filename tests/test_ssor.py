@@ -242,6 +242,7 @@ class TestSSoR(unittest.TestCase):
                 case_id="atomic-save-test",
                 workload="updated_workload.py",
             )
+            updated.revision = original.revision
             updated.record_event("updated_saved")
 
             with patch(

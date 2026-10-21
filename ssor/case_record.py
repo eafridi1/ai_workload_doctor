@@ -125,6 +125,7 @@ class CaseRecord:
     events: list[dict[str, Any]] = field(default_factory=list)
     created_at: str = field(default_factory=_now)
     updated_at: str = field(default_factory=_now)
+    revision: int = 0
 
     def validate_schema(self) -> None:
         """Raise ValueError when the case or its events violate the schema."""
@@ -158,6 +159,12 @@ class CaseRecord:
 
         for index, event in enumerate(self.events):
             _validate_event(event, index)
+        if (
+            not isinstance(self.revision, int)
+            or isinstance(self.revision, bool)
+            or self.revision < 0
+        ):
+            raise ValueError("revision must be a non-negative integer.")
 
         try:
             json.dumps(self.to_dict(), allow_nan=False)
@@ -250,6 +257,7 @@ class CaseRecord:
             "events": self.events,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "revision": self.revision,
         }
 
     @classmethod
@@ -279,6 +287,7 @@ class CaseRecord:
             events=data["events"],
             created_at=data["created_at"],
             updated_at=data["updated_at"],
+            revision=data.get("revision", 0),
         )
         case.validate_schema()
         return case
