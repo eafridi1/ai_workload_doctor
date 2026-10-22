@@ -281,3 +281,103 @@ class CaseStore:
                 ) from exc
 
         return entries
+
+    def preview_revision(
+        self,
+        case_id: str,
+        revision: int,
+    ) -> dict:
+        """Return a verified historical snapshot without changing the case."""
+        if (
+            not isinstance(revision, int)
+            or isinstance(revision, bool)
+            or revision < 1
+        ):
+            raise ValueError("revision must be a positive integer.")
+
+        for entry in self.get_history(case_id):
+            if entry["revision"] == revision:
+                return entry["snapshot"].copy()
+
+        raise FileNotFoundError(
+            f"Revision {revision} not found for case '{case_id}'."
+        )
+
+    def compare_revisions(
+        self,
+        case_id: str,
+        from_revision: int,
+        to_revision: int,
+    ) -> dict:
+        """Compare two saved revisions by top-level case fields."""
+        before = self.preview_revision(case_id, from_revision)
+        after = self.preview_revision(case_id, to_revision)
+
+        ignored = {"revision", "updated_at"}
+        fields = sorted((set(before) | set(after)) - ignored)
+        changes = {}
+
+        for field in fields:
+            old_value = before.get(field)
+            new_value = after.get(field)
+
+            if old_value != new_value:
+                changes[field] = {
+                    "before": old_value,
+                    "after": new_value,
+                }
+
+        return {
+            "case_id": case_id,
+            "from_revision": from_revision,
+            "to_revision": to_revision,
+            "changes": changes,
+        }
+
+    def recover_revision(
+        self,
+        case_id: str,
+        revision: int,
+        expected_current_revision: int,
+    ) -> str:
+        """Restore historical case data as a new revision."""
+        current = self.load(case_id)
+
+        if current.revision != expected_current_revision:
+            raise ConcurrencyConflictError(
+                f"Stale recovery request for '{case_id}': "
+                f"expected current revision {expected_current_revision}, "
+                f"actual revision is {current.revision}."
+            )
+
+        snapshot = self.preview_revision(case_id, revision)
+
+        if snapshot["case_id"] != current.case_id:
+            raise ValueError("Historical snapshot case_id mismatch.")
+
+        current_fields = current.to_dict()
+
+        for field in (
+            "workload",
+            "analysis",
+            "candidate",
+            "evidence",
+            "approval",
+            "execution",
+            "benchmarks",
+            "verification",
+            "outcome",
+            "provenance",
+        ):
+            current_fields[field] = snapshot[field]
+
+        recovered = CaseRecord.from_dict(current_fields)
+        recovered.record_event(
+            "revision_recovered",
+            {
+                "source_revision": revision,
+                "previous_current_revision": current.revision,
+            },
+        )
+
+        return self.save(recovered)

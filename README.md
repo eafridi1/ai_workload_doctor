@@ -185,3 +185,10 @@ Validation: 54 tests passed.
 
 Revision snapshots are local audit records, not a tamper-proof security boundary.
 A user able to rewrite both a snapshot and its hash can forge the stored history.
+
+## AMD-03.16 — SSoR Revision Comparison and Recovery section documenting:
+
+- Revision preview: inspect a verified historical snapshot without changing the current case.
+- Revision comparison: identify changed top-level fields between two saved revisions.
+- Revision recovery: restore historical case data as a new revision while preserving the current audit trail.
+- Safety: stale recovery requests are rejected, and the existing history-integrity checks remain in place.
