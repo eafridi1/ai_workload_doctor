@@ -192,3 +192,10 @@ A user able to rewrite both a snapshot and its hash can forge the stored history
 - Revision comparison: identify changed top-level fields between two saved revisions.
 - Revision recovery: restore historical case data as a new revision while preserving the current audit trail.
 - Safety: stale recovery requests are rejected, and the existing history-integrity checks remain in place.
+
+## AMD-03.17 — SSoR Revision Audit Interface section documenting the four pipeline methods:
+- list_case_revisions()
+- preview_case_revision()
+- compare_case_revisions()
+- recover_case_revision()
+- recovery creates a new revision and rejects stale requests.

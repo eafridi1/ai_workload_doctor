@@ -399,6 +399,57 @@ class WorkloadDoctorPipeline:
 
         return self.case.to_dict()
 
+    def list_case_revisions(
+        self,
+        case_id: str | None = None,
+    ) -> list[dict]:
+        """List verified revision history for a case."""
+        target_id = case_id or self.case.case_id
+        return self.case_store.get_history(target_id)
+
+    def preview_case_revision(
+        self,
+        revision: int,
+        case_id: str | None = None,
+    ) -> dict:
+        """Preview a historical revision without changing the active case."""
+        target_id = case_id or self.case.case_id
+        return self.case_store.preview_revision(
+            target_id,
+            revision,
+        )
+
+    def compare_case_revisions(
+        self,
+        from_revision: int,
+        to_revision: int,
+        case_id: str | None = None,
+    ) -> dict:
+        """Compare two historical revisions."""
+        target_id = case_id or self.case.case_id
+        return self.case_store.compare_revisions(
+            target_id,
+            from_revision,
+            to_revision,
+        )
+
+    def recover_case_revision(
+        self,
+        revision: int,
+        expected_current_revision: int,
+        case_id: str | None = None,
+    ) -> dict:
+        """Recover a historical revision as a new saved revision."""
+        target_id = case_id or self.case.case_id
+
+        self.case_store.recover_revision(
+            target_id,
+            revision,
+            expected_current_revision,
+        )
+
+        self.case = self.case_store.load(target_id)
+        return self.case.to_dict()
 
     def save_result(
         self,
