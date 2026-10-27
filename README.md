@@ -199,3 +199,37 @@ A user able to rewrite both a snapshot and its hash can forge the stored history
 - compare_case_revisions()
 - recover_case_revision()
 - recovery creates a new revision and rejects stale requests.
+
+
+## AMD-03.18 — SSoR Audit Report Generation
+
+### Capabilities
+- Generates a structured, JSON-serializable audit report from SSoR revision history.
+- Includes the case ID, UTC report-generation timestamp, revision count, revision range, and per-revision metadata.
+- Records each revision's timestamp, change summary, SHA-256 snapshot hash, and governance events.
+- Reuses `CaseStore.get_history()` to validate snapshot integrity, case schema, event-chain integrity, and revision metadata before reporting.
+- Rejects corrupted history rather than reporting it as verified.
+- Supports cases with no saved revisions, returning an empty revision list and null revision boundaries.
+
+### Usage
+
+Generate a report for the active case:
+
+```python
+report = pipeline.generate_audit_report()
+```
+
+Generate a report for a specific case:
+
+```python
+report = pipeline.generate_audit_report(case_id="local-case")
+```
+
+The method returns a dictionary suitable for JSON serialization. It does not write a report file, create a new case revision, or intentionally modify the active case or saved history.
+
+### Validation
+- Added five tests covering report contents, JSON serialization, read-only behavior, empty history, and corrupted snapshot rejection.
+- Full test suite: **82 tests passed**.
+
+### Integrity limitation
+The report verifies stored history using existing SSoR integrity checks. SHA-256 hashes and event chains detect inconsistencies, but local records are not tamper-proof against an actor who can rewrite the snapshots and their corresponding hashes.

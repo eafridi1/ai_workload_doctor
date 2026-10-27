@@ -1,5 +1,5 @@
 from pathlib import Path
-
+from ssor.audit_report import AuditReportGenerator
 from agents.governed_action import GovernedOptimizationAction
 from agents.correctness_engine import CorrectnessEngine
 from agents.optimization_detector import OptimizationDetector
@@ -450,6 +450,15 @@ class WorkloadDoctorPipeline:
 
         self.case = self.case_store.load(target_id)
         return self.case.to_dict()
+
+    def generate_audit_report(
+        self,
+        case_id: str | None = None,
+    ) -> dict:
+        """Generate a read-only report from verified revision history."""
+        target_id = case_id or self.case.case_id
+        generator = AuditReportGenerator(self.case_store)
+        return generator.generate(target_id)
 
     def save_result(
         self,
