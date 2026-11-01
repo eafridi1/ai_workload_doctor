@@ -233,3 +233,48 @@ The method returns a dictionary suitable for JSON serialization. It does not wri
 
 ### Integrity limitation
 The report verifies stored history using existing SSoR integrity checks. SHA-256 hashes and event chains detect inconsistencies, but local records are not tamper-proof against an actor who can rewrite the snapshots and their corresponding hashes.
+
+
+### AMD-03.19 — SSoR Audit Report Export and Persistence
+
+Implemented atomic JSON export of verified SSoR audit reports.
+
+**Capabilities**
+- Exports audit reports generated from verified SSoR revision history.
+- Saves reports under `reports/ssor/audit_exports/`.
+- Uses a case-specific filename: `<case_id>-audit.json`.
+- Rejects invalid case IDs and reports that do not match the expected verified report identity.
+- Uses temporary files and atomic replacement to prevent partially written exports.
+- Replaces the previous export for the same case ID.
+- Preserves existing SSoR case records, revision history, and governance events.
+
+**Pipeline usage**
+
+```python
+export_path = pipeline.export_audit_report()
+print(export_path)
+```
+
+An optional case ID and export directory can also be supplied:
+
+```python
+export_path = pipeline.export_audit_report(
+    case_id="local-case",
+    export_dir="reports/ssor/audit_exports",
+)
+```
+
+**Validation**
+- Export success and JSON readability.
+- Existing export replacement.
+- Invalid case ID rejection.
+- Unverified report rejection.
+- Case and revision history preservation.
+- Corrupted history rejection.
+- Atomic replacement failure handling.
+
+**Test results**
+- Focused audit tests: 12 passed.
+- Full regression suite: 89 passed.
+
+**Integrity limitation:** Export validation checks report identity fields. The trustworthiness of the report depends on generating it through the pipeline from verified SSoR history. The JSON export is not digitally signed.

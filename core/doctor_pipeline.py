@@ -1,5 +1,6 @@
+
 from pathlib import Path
-from ssor.audit_report import AuditReportGenerator
+
 from agents.governed_action import GovernedOptimizationAction
 from agents.correctness_engine import CorrectnessEngine
 from agents.optimization_detector import OptimizationDetector
@@ -8,6 +9,8 @@ from agents.workload_analyzer import WorkloadAnalyzer
 from benchmarks.benchmark_engine import BenchmarkEngine
 from benchmarks.result_store import BenchmarkResultStore
 from core.safe_execution import SafeFileExecutor
+from ssor.audit_exporter import AuditReportExporter
+from ssor.audit_report import AuditReportGenerator
 from ssor.case_record import CaseRecord
 from ssor.case_store import CaseStore
 from ssor.provenance import create_provenance
@@ -62,16 +65,13 @@ class WorkloadDoctorPipeline:
         resolved_case_id = case_id or "local-case"
 
         try:
-            self.case = self.case_store.load(
-                resolved_case_id
-            )
+            self.case = self.case_store.load(resolved_case_id)
             self.case.workload = workload_path
         except FileNotFoundError:
             self.case = CaseRecord(
                 case_id=resolved_case_id,
                 workload=workload_path,
             )
-
 
     def analyze(self) -> dict:
         result = self.analyzer.analyze()
@@ -219,9 +219,7 @@ class WorkloadDoctorPipeline:
                     "verified",
                     False,
                 ),
-                "decision": result.get(
-                    "decision",
-                ),
+                "decision": result.get("decision"),
             },
         )
 
@@ -269,9 +267,7 @@ class WorkloadDoctorPipeline:
                 capture_output=True,
             ).run()
 
-            candidate_output = after_benchmark.get(
-                "output"
-            )
+            candidate_output = after_benchmark.get("output")
 
             verification = self.verify(
                 before=before_benchmark,
@@ -285,19 +281,14 @@ class WorkloadDoctorPipeline:
                 after_benchmark,
             )
 
-            action.record_verification(
-                verification
-            )
+            action.record_verification(verification)
 
             self.case.benchmarks = {
                 "before": before_benchmark,
                 "after": after_benchmark,
             }
 
-            if verification.get(
-                "verified",
-                False,
-            ):
+            if verification.get("verified", False):
                 action.accept()
 
                 self.case.outcome = "accepted"
@@ -306,9 +297,7 @@ class WorkloadDoctorPipeline:
                     "optimization_accepted"
                 )
 
-                case_path = self.case_store.save(
-                    self.case
-                )
+                case_path = self.case_store.save(self.case)
 
                 return {
                     "status": "accepted",
@@ -343,9 +332,7 @@ class WorkloadDoctorPipeline:
                 },
             )
 
-            case_path = self.case_store.save(
-                self.case
-            )
+            case_path = self.case_store.save(self.case)
 
             return {
                 "status": "rolled_back",
@@ -381,10 +368,8 @@ class WorkloadDoctorPipeline:
 
     def save_case(self) -> str:
         """Persist the current SSoR case."""
+        return self.case_store.save(self.case)
 
-        return self.case_store.save(
-            self.case
-        )
     def load_case(self, case_id: str) -> dict:
         """Recover a saved SSoR case for handoff or review."""
 
@@ -459,6 +444,19 @@ class WorkloadDoctorPipeline:
         target_id = case_id or self.case.case_id
         generator = AuditReportGenerator(self.case_store)
         return generator.generate(target_id)
+
+    def export_audit_report(
+        self,
+        case_id: str | None = None,
+        export_dir: str | Path = "reports/ssor/audit_exports",
+    ) -> str:
+        """Generate and atomically export a verified audit report."""
+        target_id = case_id or self.case.case_id
+
+        report = self.generate_audit_report(target_id)
+        exporter = AuditReportExporter(export_dir)
+
+        return str(exporter.export(target_id, report))
 
     def save_result(
         self,
