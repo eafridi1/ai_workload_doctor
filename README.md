@@ -278,3 +278,19 @@ export_path = pipeline.export_audit_report(
 - Full regression suite: 89 passed.
 
 **Integrity limitation:** Export validation checks report identity fields. The trustworthiness of the report depends on generating it through the pipeline from verified SSoR history. The JSON export is not digitally signed.
+
+### AMD-04.1 — AMD GPU Environment Assessment
+
+**Local environment**
+- Windows 11 with WSL2 Ubuntu.
+- Intel-based development machine.
+- No AMD GPU device exposed to WSL.
+- ROCm tools unavailable.
+- PyTorch and Triton not installed.
+
+**Decision**
+Local AMD GPU execution is unavailable in the current environment.
+AMD GPU integration will target an AMD-capable cloud environment.
+
+**Validation limitation**
+No real AMD GPU optimization or acceleration has been demonstrated locally.
