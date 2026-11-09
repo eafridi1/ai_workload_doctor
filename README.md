@@ -33,9 +33,10 @@ AMD Developer Cloud and AMD Instinct GPUs will be introduced later for real ROCm
 
 ## Project Status
 
-AMD-01 — Local Project Setup
-
-Status: In progress
+- **Latest completed milestone:** AMD-04.1 — AMD GPU Environment Assessment
+- **Next milestone:** AMD-04.2 — AMD GPU Execution Adapter (planned)
+- **Latest local validation:** 89 tests passed; working tree clean; local `master` synchronized with `origin/master` at `126aa09` (verified November 9, 2026)
+- **GPU validation status:** No AMD GPU execution or acceleration has been demonstrated locally; hardware validation remains pending an AMD-capable environment.
 
 
 ## AMD-03.8 — State System of Record (SSoR)
