@@ -175,6 +175,21 @@ Atomic replacement reduces the risk of partially written case files. It does not
 
 Validation: 54 tests passed.
 
+## AMD-03.14 — SSoR Revision Versioning and Concurrency Control
+
+Added revision numbers and optimistic concurrency control to persisted SSoR cases.
+
+- Adds a validated revision field to each case record.
+- Assigns revision **1** when a case is first saved and increments the revision on successful updates.
+- Checks the saved revision before writing, rejecting stale updates with `ConcurrencyConflictError`.
+- Uses file locking to serialize the revision check and save operation.
+- Prevents failed saves from advancing the case revision.
+- Supports loading an existing case so subsequent changes use its current revision.
+
+**Validation**
+- Tests cover initial and incremented revisions, stale-write rejection, failed-save behavior, and invalid revision values.
+- Concurrency control protects against conflicting writers; it does not replace backups or external audit storage.
+
 ## AMD-03.15 — SSoR Case History and Revision Audit
 
 - Stores a snapshot for each successfully saved case revision.
