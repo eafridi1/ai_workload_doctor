@@ -345,3 +345,22 @@ Implemented a mock execution backend for hardware-independent development and te
 - Does not execute workload source code.
 
 Validation: 6 mock backend tests passed; 100 total regression tests passed.
+
+- **Latest completed milestone:** AMD-04.2.3 — ROCm Capability Detection
+- **Next milestone:** AMD-04.2.4 — Governed Pipeline Integration
+- **Latest local validation:** 107 tests passed.
+- **GPU validation status:** ROCm detection is implemented and unit-tested using mocked environments; actual AMD GPU availability and execution remain unverified.
+
+## AMD-04.2.3 — ROCm Capability Detection
+
+Implemented initial AMD ROCm environment detection.
+
+- Detects whether `rocminfo` is available.
+- Checks ROCm detection output for an AMD GPU agent.
+- Handles missing runtime, detection errors, and timeouts.
+- Reports unavailable hardware explicitly.
+- Rejects execution because the actual ROCm workload executor is not yet implemented.
+
+Validation: 7 ROCm backend tests passed; 107 total regression tests passed.
+
+Hardware validation remains pending access to an AMD-capable environment.
