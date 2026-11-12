@@ -310,3 +310,20 @@ AMD GPU integration will target an AMD-capable cloud environment.
 
 **Validation limitation**
 No real AMD GPU optimization or acceleration has been demonstrated locally.
+
+- **Latest completed milestone:** AMD-04.2.1 — Backend Interface and Execution Contract
+- **Next milestone:** AMD-04.2.2 — Mock Backend Implementation
+- **Latest local validation:** 94 tests passed.
+- **GPU validation status:** No AMD GPU execution or acceleration has been demonstrated locally; hardware validation remains pending an AMD-capable environment.
+
+## AMD-04.2.1 — Backend Interface and Execution Contract
+
+Implemented a shared execution backend contract.
+
+- Defined `ExecutionBackend` protocol.
+- Added `BackendCapabilities`, `ExecutionRequest`, and `BackendExecutionResult`.
+- Added standardized backend exceptions.
+- Added input validation for execution requests and backend results.
+- Established separation between backend execution and governance authorization.
+
+Validation: 5 backend contract tests passed; 94 total regression tests passed.
