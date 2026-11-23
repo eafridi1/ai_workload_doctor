@@ -364,3 +364,32 @@ Implemented initial AMD ROCm environment detection.
 Validation: 7 ROCm backend tests passed; 107 total regression tests passed.
 
 Hardware validation remains pending access to an AMD-capable environment.
+
+
+
+## AMD-04.2.4 — Governed Pipeline Integration
+
+Integrated the backend capability interface into the existing Workload Doctor pipeline.
+
+### Implementation
+
+- Added optional backend injection to `WorkloadDoctorPipeline`.
+- Added backend capability inspection through `inspect_backend()`.
+- Supports inspection of the mock backend and ROCm backend through the shared execution contract.
+- Records backend capability information in the case execution data for auditability.
+- Preserves the existing host-based optimization workflow when no backend is supplied.
+- Keeps the existing governance controls, including human approval, safe file execution, benchmarking, correctness verification, and rollback.
+- Backend capability inspection does not execute workload code through the backend.
+
+### Execution and Hardware Limitations
+
+- The mock backend provides simulated execution metadata only.
+- The ROCm backend currently detects AMD GPU/runtime availability but does not implement actual workload execution.
+- No actual AMD GPU acceleration or ROCm benchmark results are claimed.
+- Existing host-based execution and benchmark verification remain the operational path.
+
+### Test Results
+
+- AMD-04.2.4 targeted tests: 23 passed.
+- Full regression suite: 107 passed.
+- Result: All tests passed.

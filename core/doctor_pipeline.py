@@ -1,6 +1,5 @@
-
 from pathlib import Path
-
+from backends.contracts import BackendCapabilities, ExecutionBackend
 from agents.governed_action import GovernedOptimizationAction
 from agents.correctness_engine import CorrectnessEngine
 from agents.optimization_detector import OptimizationDetector
@@ -47,6 +46,7 @@ class WorkloadDoctorPipeline:
         workload_path: str,
         benchmark_workload_path: str | None = None,
         case_id: str | None = None,
+        backend: ExecutionBackend | None = None,
     ):
         self.workload_path = workload_path
         self.benchmark_workload_path = (
@@ -59,6 +59,7 @@ class WorkloadDoctorPipeline:
         self.correctness_engine = CorrectnessEngine()
         self.result_store = BenchmarkResultStore()
         self.safe_executor = SafeFileExecutor()
+        self.backend = backend
 
         self.case_store = CaseStore()
 
@@ -72,6 +73,46 @@ class WorkloadDoctorPipeline:
                 case_id=resolved_case_id,
                 workload=workload_path,
             )
+
+    def inspect_backend(self) -> dict:
+        """Inspect backend capabilities without executing workload code."""
+        if self.backend is None:
+            result = {
+                "backend_name": "host",
+                "available": True,
+                "supported_operations": ["host_file_execution"],
+                "device_name": None,
+                "runtime_version": None,
+                "unavailable_reason": None,
+                "execution_mode": "host_file_execution",
+                "hardware_accelerated": False,
+            }
+        else:
+            capabilities = self.backend.get_capabilities()
+
+            if not isinstance(capabilities, BackendCapabilities):
+                raise TypeError(
+                    "Backend must return a BackendCapabilities instance."
+                )
+
+            result = {
+                "backend_name": capabilities.backend_name,
+                "available": capabilities.available,
+                "supported_operations": list(
+                    capabilities.supported_operations
+                ),
+                "device_name": capabilities.device_name,
+                "runtime_version": capabilities.runtime_version,
+                "unavailable_reason": capabilities.unavailable_reason,
+                "execution_mode": "capability_inspection_only",
+                "hardware_accelerated": False,
+            }
+
+        self.case.record_event(
+            "backend_capabilities_inspected",
+            result,
+        )
+        return result
 
     def analyze(self) -> dict:
         result = self.analyzer.analyze()
@@ -242,18 +283,23 @@ class WorkloadDoctorPipeline:
             "approved": action.human_approved,
         }
 
+        backend_metadata = self.inspect_backend()
+
         execution = self.safe_executor.execute(
             action=action,
             target_path=self.workload_path,
             new_content=new_content,
         )
 
+        execution["backend_capabilities"] = backend_metadata
         self.case.execution = execution
 
         self.case.record_event(
             "optimization_executed",
             {
                 "target": self.workload_path,
+                "backend_name": backend_metadata["backend_name"],
+                "execution_mode": backend_metadata["execution_mode"],
             },
         )
 
