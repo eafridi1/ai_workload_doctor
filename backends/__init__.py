@@ -10,6 +10,7 @@ from backends.contracts import (
     ExecutionRequest,
 )
 from backends.mock_backend import MockExecutionBackend
+from backends.rocm_backend import ROCmExecutionBackend
 
 __all__ = [
     "BackendCapabilities",
@@ -20,4 +21,5 @@ __all__ = [
     "ExecutionBackend",
     "ExecutionRequest",
     "MockExecutionBackend",
+    "ROCmExecutionBackend",
 ]
